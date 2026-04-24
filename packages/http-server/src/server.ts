@@ -21,6 +21,7 @@ import { pipe } from 'fp-ts/function';
 import * as TE from 'fp-ts/TaskEither';
 import * as E from 'fp-ts/Either';
 import * as IOE from 'fp-ts/IOEither';
+import * as getRawBody from 'raw-body';
 
 function searchParamsToNameValues(searchParams: URLSearchParams): IHttpNameValues {
   const params = {};
@@ -58,7 +59,7 @@ function addViolationHeader(reply: ServerResponse, validationErrors: ValidationE
   reply.setHeader('sl-violations', value);
 }
 
-function parseRequestBody(request: IncomingMessage) {
+function parseRequestBody(request: IncomingMessage, config: IHttpConfig) {
   // if no body provided then return null instead of empty string
   if (
     // If the body size is null, it means the body itself is null so the promise can resolve with a null value
@@ -73,6 +74,17 @@ function parseRequestBody(request: IncomingMessage) {
 
   if (typeIs(request, ['application/json', 'application/*+json'])) {
     return json(request, { limit: '10mb' });
+  } else if (
+    config.skipBinaryValidation &&
+    typeIs(request, [
+      'application/octet-stream',
+      'multipart/form-data',
+      'multipart/*',
+      'application/x-www-form-urlencoded',
+    ])
+  ) {
+    // Read as raw Buffer to preserve exact bytes for proxying (bypass validation)
+    return getRawBody(request, { limit: '10mb' });
   } else {
     return text(request, { limit: '10mb' });
   }
@@ -84,7 +96,7 @@ export const createServer = (operations: IHttpOperation[], opts: IPrismHttpServe
   const handler: MicriHandler = async (request, reply) => {
     const { url, method, headers } = request;
 
-    const body = await parseRequestBody(request);
+    const body = await parseRequestBody(request, config);
 
     const { searchParams, pathname } = new URL(
       url!, // url can't be empty for HTTP request

@@ -82,12 +82,14 @@ async function createPrismServerWithLogger(options: CreateBaseServerOptions, log
   }
 
   const validateRequest = isProxyServerOptions(options) ? options.validateRequest : true;
+  const skipBinaryValidation = isProxyServerOptions(options) ? options.skipBinaryValidation : false;
   const shared = {
     validateRequest,
     validateResponse: true,
     checkSecurity: true,
     errors: options.errors,
     upstreamProxy: undefined,
+    skipBinaryValidation,
     mock: { dynamic: options.dynamic, ignoreExamples: options.ignoreExamples, seed: options.seed },
   };
 
@@ -140,7 +142,7 @@ function pipeOutputToSignale(stream: Readable) {
           const repairedJson = jsonrepair(chunk);
           return JSON.parse(repairedJson);
         } catch (error) {
-          signale.await({ prefix: chalk.bgWhiteBright.black('[CLI]'), message: 'Invalid JSON and unable to correct'});
+          signale.await({ prefix: chalk.bgWhiteBright.black('[CLI]'), message: 'Invalid JSON and unable to correct' });
         }
       })
     )
@@ -173,6 +175,7 @@ type CreateBaseServerOptions = {
 export interface CreateProxyServerOptions extends CreateBaseServerOptions {
   upstream: URL;
   validateRequest: boolean;
+  skipBinaryValidation?: boolean;
   upstreamProxy: string | undefined;
 }
 

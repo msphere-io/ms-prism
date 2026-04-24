@@ -22,6 +22,7 @@ type IPrismBaseConfig = {
   upstreamProxy: string | undefined;
   isProxy: boolean;
   mock: unknown;
+  skipBinaryValidation?: boolean;
 };
 
 export type IPrismMockConfig = IPrismBaseConfig & {

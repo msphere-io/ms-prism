@@ -31,6 +31,12 @@ const proxyCommand: CommandModule = {
           boolean: true,
           default: true,
         },
+        'skip-binary-validation': {
+          description:
+            'Skip validation for binary content types (application/octet-stream, multipart/form-data, application/x-www-form-urlencoded) and pass them through as-is.',
+          boolean: true,
+          default: false,
+        },
         'upstream-proxy': {
           description:
             'If an http proxy is required to reach upstream, formatted as "{protocol}://[{user}[:{password}]@]{host}[:{port}]". eg "http://myUser:myPassword@proxy.example.com:1234"',
@@ -39,6 +45,7 @@ const proxyCommand: CommandModule = {
       }),
   handler: async parsedArgs => {
     parsedArgs.validateRequest = parsedArgs['validate-request'];
+    parsedArgs.skipBinaryValidation = parsedArgs['skip-binary-validation'];
     const p: CreateProxyServerOptions = pick(
       parsedArgs as unknown as CreateProxyServerOptions,
       'dynamic',
@@ -50,6 +57,7 @@ const proxyCommand: CommandModule = {
       'upstream',
       'errors',
       'validateRequest',
+      'skipBinaryValidation',
       'verboseLevel',
       'ignoreExamples',
       'seed',

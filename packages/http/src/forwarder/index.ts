@@ -99,7 +99,7 @@ const forward: IPrismComponents<IHttpOperation, IHttpRequest, IHttpResponse, IHt
 
 export default forward;
 
-function serializeBodyForFetch(input: IHttpRequest, logger: Logger): E.Either<Error, string | undefined> {
+function serializeBodyForFetch(input: IHttpRequest, logger: Logger): E.Either<Error, string | Buffer | undefined> {
   const upperMethod = input.method.toUpperCase();
   if (['GET', 'HEAD'].includes(upperMethod) && ![null, undefined].includes(input.body as any)) {
     logger.warn(`Upstream ${upperMethod} call to ${input.url.path} has request body`);
@@ -109,8 +109,12 @@ function serializeBodyForFetch(input: IHttpRequest, logger: Logger): E.Either<Er
   return serializeBody(input.body);
 }
 
-export function serializeBody(body: unknown): E.Either<Error, string | undefined> {
+export function serializeBody(body: unknown): E.Either<Error, string | Buffer | undefined> {
   if (typeof body === 'string') {
+    return E.right(body);
+  }
+
+  if (Buffer.isBuffer(body)) {
     return E.right(body);
   }
 
