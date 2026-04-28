@@ -15,7 +15,8 @@ import * as E from 'fp-ts/Either';
 import { sequenceOption, sequenceValidation } from '../combinators';
 import { pipe } from 'fp-ts/function';
 import { inRange, isMatch } from 'lodash';
-import { URI } from 'uri-template-lite';
+// @ts-ignore - uri-template-lite v22 exports URI but @types/uri-template-lite is outdated
+const { URI } = require('uri-template-lite');
 import { IHttpRequest, IHttpResponse, IHttpNameValue } from '../types';
 import { findOperationResponse } from './utils/spec';
 import { validateBody, validateHeaders, validatePath, validateQuery } from './validators';

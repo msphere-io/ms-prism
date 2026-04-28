@@ -18,7 +18,8 @@ import * as O from 'fp-ts/Option';
 import * as ROA from 'fp-ts/ReadonlyArray';
 import { pipe } from 'fp-ts/function';
 import { fromPairs, identity } from 'lodash';
-import { URI } from 'uri-template-lite';
+// @ts-ignore - uri-template-lite v22 exports URI but @types/uri-template-lite is outdated
+const { URI } = require('uri-template-lite');
 import { sequenceSEither } from '../combinators';
 import { ValuesTransformer } from './colorizer';
 
