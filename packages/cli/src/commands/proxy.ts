@@ -33,7 +33,7 @@ const proxyCommand: CommandModule = {
         },
         'skip-binary-validation': {
           description:
-            'Skip validation for binary content types (application/octet-stream, multipart/form-data, application/x-www-form-urlencoded) and pass them through as-is.',
+            'Skip validation for binary content types (application/octet-stream, multipart/form-data, application/x-www-form-urlencoded, application/pdf) and pass them through as-is.',
           boolean: true,
           default: false,
         },

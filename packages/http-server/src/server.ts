@@ -81,6 +81,7 @@ function parseRequestBody(request: IncomingMessage, config: IHttpConfig) {
       'multipart/form-data',
       'multipart/*',
       'application/x-www-form-urlencoded',
+      'application/pdf',
     ])
   ) {
     // Read as raw Buffer to preserve exact bytes for proxying (bypass validation)
