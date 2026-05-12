@@ -46,6 +46,41 @@ describe('parseResponseBody()', () => {
         expect(response.json).not.toHaveBeenCalled();
         return assertResolvesRight(parseResponseBody(response), body => expect(body).toEqual('<html>Test</html>'));
       });
+
+      it('returns binary body for non-text content-types when skipBinaryValidation is enabled', () => {
+        const bufferBody = Buffer.from([0x25, 0x50, 0x44, 0x46]);
+        const response = {
+          status: 200,
+          headers: new Headers({ 'content-type': 'application/pdf' }),
+          json: jest.fn(),
+          text: jest.fn(),
+          buffer: jest.fn().mockResolvedValue(bufferBody),
+        };
+
+        expect(response.json).not.toHaveBeenCalled();
+        expect(response.text).not.toHaveBeenCalled();
+        return assertResolvesRight(parseResponseBody(response, true), body => {
+          expect(response.buffer).toHaveBeenCalled();
+          expect(body).toEqual(bufferBody);
+        });
+      });
+
+      it('returns body text for non-text content-types when skipBinaryValidation is disabled', () => {
+        const response = {
+          status: 200,
+          headers: new Headers({ 'content-type': 'application/pdf' }),
+          json: jest.fn(),
+          text: jest.fn().mockResolvedValue('%PDF as text'),
+          buffer: jest.fn(),
+        };
+
+        expect(response.json).not.toHaveBeenCalled();
+        expect(response.buffer).not.toHaveBeenCalled();
+        return assertResolvesRight(parseResponseBody(response, false), body => {
+          expect(response.text).toHaveBeenCalled();
+          expect(body).toEqual('%PDF as text');
+        });
+      });
     });
 
     describe('body is not readable', () => {
@@ -55,7 +90,6 @@ describe('parseResponseBody()', () => {
           headers: new Headers(),
           json: jest.fn(),
           text: jest.fn().mockRejectedValue(new Error('Big Bada Boom')),
-
         };
 
         expect(response.json).not.toHaveBeenCalled();

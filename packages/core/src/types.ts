@@ -45,7 +45,8 @@ export type IPrismComponents<Resource, Input, Output, Config extends IPrismConfi
     input: IPrismInput<Input>,
     baseUrl: string,
     upstreamProxy: Config['upstreamProxy'],
-    resource?: Resource
+    resource?: Resource,
+    config?: Config
   ) => ReaderTaskEither<Logger, Error, Output>;
   mock: (opts: {
     resource: Resource;

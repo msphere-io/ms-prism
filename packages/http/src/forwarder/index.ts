@@ -31,7 +31,8 @@ const forward: IPrismComponents<IHttpOperation, IHttpRequest, IHttpResponse, IHt
     { data: input, validations }: IPrismInput<IHttpRequest>,
     baseUrl: string,
     upstreamProxy: IHttpConfig['upstreamProxy'],
-    resource
+    resource,
+    config
   ): RTE.ReaderTaskEither<Logger, Error, IHttpResponse> =>
   logger =>
     pipe(
@@ -87,7 +88,7 @@ const forward: IPrismComponents<IHttpOperation, IHttpRequest, IHttpResponse, IHt
         return TE.right(undefined);
       }),
       TE.map(forwardResponseLogger(logger)),
-      TE.chain(parseResponse),
+      TE.chain(response => parseResponse(response, Boolean(config?.skipBinaryValidation))),
       TE.map(response => {
         if (resource && resource.deprecated && response.headers && !response.headers.deprecation) {
           response.headers.deprecation = 'true';

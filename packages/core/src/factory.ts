@@ -77,7 +77,8 @@ export function factory<Resource, Input, Output, Config extends IPrismConfig>(
         },
         config.upstream.href,
         config.upstreamProxy,
-        resource
+        resource,
+        config as Config
       );
 
     const produceOutput = isProxyConfig(config)
@@ -113,7 +114,9 @@ export function factory<Resource, Input, Output, Config extends IPrismConfig>(
                 components.forward(
                   { data: input, validations: [] },
                   config.upstream.href,
-                  config.upstreamProxy
+                  config.upstreamProxy,
+                  undefined,
+                  config
                 )(components.logger.child({ name: 'PROXY' })),
                 TE.map(createWarningOutput)
               );
