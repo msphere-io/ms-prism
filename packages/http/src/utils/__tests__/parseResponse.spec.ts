@@ -47,7 +47,25 @@ describe('parseResponseBody()', () => {
         return assertResolvesRight(parseResponseBody(response), body => expect(body).toEqual('<html>Test</html>'));
       });
 
-      it('returns binary body for non-text content-types when skipBinaryValidation is enabled', () => {
+      it('returns binary body for non-JSON content-types when skipBinaryValidation is enabled', () => {
+        const bufferBody = Buffer.from('<html>Test</html>');
+        const response = {
+          status: 200,
+          headers: new Headers({ 'content-type': 'text/html' }),
+          json: jest.fn(),
+          text: jest.fn(),
+          buffer: jest.fn().mockResolvedValue(bufferBody),
+        };
+
+        expect(response.json).not.toHaveBeenCalled();
+        expect(response.text).not.toHaveBeenCalled();
+        return assertResolvesRight(parseResponseBody(response, true), body => {
+          expect(response.buffer).toHaveBeenCalled();
+          expect(body).toEqual(bufferBody);
+        });
+      });
+
+      it('returns binary body for binary content-types when skipBinaryValidation is enabled', () => {
         const bufferBody = Buffer.from([0x25, 0x50, 0x44, 0x46]);
         const response = {
           status: 200,

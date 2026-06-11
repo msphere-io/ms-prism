@@ -74,17 +74,8 @@ function parseRequestBody(request: IncomingMessage, config: IHttpConfig) {
 
   if (typeIs(request, ['application/json', 'application/*+json'])) {
     return json(request, { limit: '10mb' });
-  } else if (
-    config.skipBinaryValidation &&
-    typeIs(request, [
-      'application/octet-stream',
-      'multipart/form-data',
-      'multipart/*',
-      'application/x-www-form-urlencoded',
-      'application/pdf',
-    ])
-  ) {
-    // Read as raw Buffer to preserve exact bytes for proxying (bypass validation)
+  } else if (config.skipBinaryValidation) {
+    // When skipping binary validation, keep raw bytes for all non-JSON payloads.
     return getRawBody(request, { limit: '10mb' });
   } else {
     return text(request, { limit: '10mb' });

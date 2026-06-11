@@ -11,14 +11,6 @@ type ParsableResponse = Pick<Response, 'headers' | 'json' | 'text' | 'status'> &
   buffer?: () => Promise<Buffer>;
 };
 
-const BINARY_CONTENT_TYPES = [
-  'application/octet-stream',
-  'multipart/form-data',
-  'multipart/*',
-  'application/x-www-form-urlencoded',
-  'application/pdf',
-];
-
 export const parseResponseBody = (
   response: ParsableResponse,
   skipBinaryValidation = false
@@ -31,9 +23,7 @@ export const parseResponseBody = (
       return response.json();
     }
 
-    const isSkippableBinaryType = Boolean(typeIs(contentType, BINARY_CONTENT_TYPES));
-
-    if (!skipBinaryValidation || !isSkippableBinaryType || typeof response.buffer !== 'function') {
+    if (!skipBinaryValidation || typeof response.buffer !== 'function') {
       return response.text();
     }
 
