@@ -117,7 +117,10 @@ describe('forward', () => {
 
   describe('when upstream return hop-by-hop headers', () => {
     it('forwarder strips them all', () => {
-      const headers = mapValues(keyBy(hopByHopHeaders), () => 'n/a');
+      // `trailer` is excluded here: a response declaring one is refused outright rather than
+      // forwarded with the trailers stripped out. See the trailer suite below.
+      const forwardable = hopByHopHeaders.filter(header => header !== 'trailer');
+      const headers = mapValues(keyBy(forwardable), () => 'n/a');
 
       stubFetch({
         headers,
@@ -133,6 +136,51 @@ describe('forward', () => {
           hopByHopHeaders.forEach(hopHeader => {
             expect(r.headers?.[hopHeader]).toBeUndefined();
           })
+      );
+    });
+
+  });
+
+  describe('when the upstream response carries HTTP trailers', () => {
+    // Prism cannot relay trailers, and forwarding the response without them would hand back
+    // data the upstream did send, minus a piece, with nothing to explain the difference.
+    it('refuses to forward the response and reports why', () => {
+      stubFetch({
+        headers: {
+          'content-type': 'application/json',
+          'transfer-encoding': 'chunked',
+          trailer: 'X-Probe-Checksum',
+        },
+      });
+
+      return assertResolvesLeft(
+        forward(
+          { validations: [], data: { method: 'get', url: { path: '/test' } } },
+          'http://example.com',
+          undefined
+        )(logger),
+        error => {
+          expect(error.name).toBe('https://stoplight.io/prism/errors#PROXY_UNSUPPORTED_RESPONSE_TRAILERS');
+          expect(error.message).toBe(
+            'The Prism proxy does not support upstream responses that carry HTTP trailers'
+          );
+          // The offending field has to be named, or nobody can act on this.
+          expect((error as any).detail).toContain('X-Probe-Checksum');
+          expect((error as any).status).toBe(501);
+        }
+      );
+    });
+
+    it('forwards normally when the upstream response has no trailers', () => {
+      stubFetch({ headers: { 'content-type': 'application/json' } });
+
+      return assertResolvesRight(
+        forward(
+          { validations: [], data: { method: 'get', url: { path: '/test' } } },
+          'http://example.com',
+          undefined
+        )(logger),
+        r => expect(r.headers).toHaveProperty('content-type', 'application/json')
       );
     });
   });

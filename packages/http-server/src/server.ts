@@ -165,18 +165,43 @@ export const createServer = (operations: IHttpOperation[], opts: IPrismHttpServe
         );
       }),
       TE.mapLeft((e: Error & { status?: number; additional?: { headers?: Dictionary<string> } }) => {
-        if (!reply.writableEnded) {
+        components.logger.error({ input }, `Request terminated with error: ${e}`);
+
+        if (reply.writableEnded) {
+          return;
+        }
+
+        const problemJson = JSON.stringify(ProblemJsonError.toProblemJson(e));
+
+        try {
           reply.setHeader('content-type', 'application/problem+json');
 
           if (e.additional && e.additional.headers)
             Object.entries(e.additional.headers).forEach(([name, value]) => reply.setHeader(name, value));
 
-          send(reply, e.status || 500, JSON.stringify(ProblemJsonError.toProblemJson(e)));
-        } else {
-          reply.end();
-        }
+          send(reply, e.status || 500, problemJson);
+        } catch (sendError) {
+          // Sending the error response can itself throw when the reply already carries a header
+          // that is illegal for the response we are about to write — a `Trailer` copied from an
+          // upstream response, for instance, makes res.end() throw ERR_HTTP_TRAILER_INVALID.
+          // Nothing downstream of here catches it, so without this the whole worker would die on
+          // a single request. Drop everything staged on the reply and try once more, bare.
+          components.logger.error({ input }, `Failed to send the error response: ${E.toError(sendError)}`);
 
-        components.logger.error({ input }, `Request terminated with error: ${e}`);
+          try {
+            if (reply.headersSent) {
+              reply.end();
+              return;
+            }
+
+            reply.getHeaderNames().forEach(name => reply.removeHeader(name));
+            reply.setHeader('content-type', 'application/problem+json');
+            send(reply, e.status || 500, problemJson);
+          } catch (fatalError) {
+            components.logger.error({ input }, `Unable to respond, destroying the socket: ${E.toError(fatalError)}`);
+            reply.destroy();
+          }
+        }
       })
     )();
   };
