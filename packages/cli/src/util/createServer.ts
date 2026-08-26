@@ -46,6 +46,46 @@ const createMultiProcessPrism: CreatePrism = async options => {
       pipeOutputToSignale(worker.process.stdout);
     }
 
+    // setupMaster({ silent: true }) pipes the worker's stderr to us instead of to the terminal.
+    // Nothing used to read it, so a crash in the worker — stack trace and all — was discarded.
+    if (worker.process.stderr) {
+      worker.process.stderr.pipe(process.stderr);
+    }
+
+    // A container runtime signals the master only, so pass it on — otherwise the worker is left
+    // to be torn down by the runtime rather than shutting itself down.
+    let shuttingDown = false;
+    (['SIGINT', 'SIGTERM'] as const).forEach(signal =>
+      process.on(signal, () => {
+        shuttingDown = true;
+
+        if (!worker.isConnected()) {
+          // No worker left to wait for, and nothing else holds the master's event loop open.
+          return process.exit(0);
+        }
+
+        worker.kill(signal);
+      })
+    );
+
+    // Once the worker is gone the master has nothing left holding its event loop open, so it used
+    // to drain and exit 0 — a worker crash looked like a clean shutdown to whatever supervises us
+    // (Kubernetes reads exit 0 as intentional, so it never becomes a CrashLoopBackOff). Report it.
+    cluster.on('exit', (_deadWorker: any, code: number, signal: string) => {
+      if (shuttingDown) {
+        return process.exit(0);
+      }
+
+      signale.fatal({
+        prefix: chalk.bgWhiteBright.black('[CLI]'),
+        message: `Prism server process died unexpectedly with ${
+          signal ? `signal ${signal}` : `code ${code}`
+        }. Shutting down.`,
+      });
+
+      return process.exit(code || 1);
+    });
+
     return;
   } else {
     const logInstance = createLogger('CLI', { ...cliSpecificLoggerOptions, level: options.verboseLevel });
