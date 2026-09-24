@@ -59,6 +59,12 @@ function addViolationHeader(reply: ServerResponse, validationErrors: ValidationE
   reply.setHeader('sl-violations', value);
 }
 
+// Raw Buffer bodies must not reach the logger: pino serialises them as `{"type":"Buffer","data":[...]}`,
+// which is several times larger than the payload and exhausts the heap when the CLI parses the log line.
+function toLoggableInput<T extends { body: unknown }>(input: T) {
+  return Buffer.isBuffer(input.body) ? { ...input, body: `<Buffer ${input.body.length} bytes>` } : input;
+}
+
 function parseRequestBody(request: IncomingMessage, config: IHttpConfig) {
   // if no body provided then return null instead of empty string
   if (
@@ -106,7 +112,7 @@ export const createServer = (operations: IHttpOperation[], opts: IPrismHttpServe
       body,
     };
 
-    components.logger.info({ input }, 'Request received');
+    components.logger.info({ input: toLoggableInput(input) }, 'Request received');
 
     const requestConfig: E.Either<Error, IHttpConfig> = pipe(
       getHttpConfigFromRequest(input),
@@ -176,7 +182,7 @@ export const createServer = (operations: IHttpOperation[], opts: IPrismHttpServe
           reply.end();
         }
 
-        components.logger.error({ input }, `Request terminated with error: ${e}`);
+        components.logger.error({ input: toLoggableInput(input) }, `Request terminated with error: ${e}`);
       })
     )();
   };
