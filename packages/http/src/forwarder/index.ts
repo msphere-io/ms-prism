@@ -16,7 +16,11 @@ import { parseResponse } from '../utils/parseResponse';
 import { hopByHopHeaders } from './resources';
 import { createUnauthorisedResponse, createUnprocessableEntityResponse } from '../mocker';
 import { ProblemJsonError } from '../types';
-import { PROXY_UNSUPPORTED_REQUEST_BODY, UPSTREAM_NOT_IMPLEMENTED } from './errors';
+import {
+  PROXY_UNSUPPORTED_REQUEST_BODY,
+  PROXY_UNSUPPORTED_RESPONSE_TRAILERS,
+  UPSTREAM_NOT_IMPLEMENTED,
+} from './errors';
 import * as createHttpProxyAgent from 'http-proxy-agent';
 import * as createHttpsProxyAgent from 'https-proxy-agent';
 import type { Agent as HttpAgent } from 'http';
@@ -81,10 +85,29 @@ const forward: IPrismComponents<IHttpOperation, IHttpRequest, IHttpResponse, IHt
       TE.chainFirst(response => {
         if (response.status === 501) {
           logger.warn(`Upstream call to ${input.url.path} has returned 501`);
+          discardBody(response);
           return TE.left(ProblemJsonError.fromTemplate(UPSTREAM_NOT_IMPLEMENTED));
         }
 
         logger.info(`The upstream call to ${input.url.path} has returned ${response.status}`);
+
+        // Prism buffers the upstream response so it can validate the body, then writes its own
+        // fixed-length response — which has nowhere to carry trailers, and node-fetch does not
+        // expose their values to us anyway. Rather than hand back a response that is quietly
+        // missing data the upstream sent, refuse it and say why.
+        const trailer = response.headers.get('trailer');
+        if (trailer) {
+          logger.error(`The upstream response to ${input.url.path} declares HTTP trailers (${trailer})`);
+          discardBody(response);
+
+          return TE.left(
+            ProblemJsonError.fromTemplate(
+              PROXY_UNSUPPORTED_RESPONSE_TRAILERS,
+              `The upstream response declares the HTTP trailer(s) "${trailer}". Prism buffers upstream responses in order to validate them and cannot relay trailers, so this response has not been forwarded rather than being forwarded with the trailers silently removed.`
+            )
+          );
+        }
+
         return TE.right(undefined);
       }),
       TE.map(forwardResponseLogger(logger)),
@@ -124,6 +147,15 @@ export function serializeBody(body: unknown): E.Either<Error, string | Buffer | 
   return E.right(undefined);
 }
 
+// node-fetch holds the upstream socket open until the response body is read. Whenever we throw a
+// response away instead of parsing it, drain it — otherwise every discarded response strands a
+// connection, and against a keep-alive upstream that is a slow leak rather than a visible failure.
+function discardBody(response: Response) {
+  if (response.body) {
+    response.body.resume();
+  }
+}
+
 function logForwardRequest({ logger, url, request }: { logger: Logger; url: string; request: IHttpRequest }) {
   const prefix = `${chalk.grey('> ')}`;
   logger.info(`${prefix}Forwarding "${request.method}" request to ${url}...`);
@@ -149,6 +181,9 @@ function forwardResponseLogger(logger: Logger) {
   };
 }
 
+// `trailer` is in this list as a backstop only: a response carrying one is rejected upstream of
+// here. If one ever did reach this point, copying it onto our own fixed-length response would
+// make Node throw ERR_HTTP_TRAILER_INVALID out of res.end().
 const stripHopByHopHeaders = (response: IHttpResponse): IHttpResponse => {
   response.headers = omit(response.headers, hopByHopHeaders);
   return response;

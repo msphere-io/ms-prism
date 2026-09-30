@@ -6,6 +6,12 @@ export const UPSTREAM_NOT_IMPLEMENTED: Omit<ProblemJson, 'detail'> = {
   status: 501,
 };
 
+export const PROXY_UNSUPPORTED_RESPONSE_TRAILERS: Omit<ProblemJson, 'detail'> = {
+  type: 'PROXY_UNSUPPORTED_RESPONSE_TRAILERS',
+  title: 'The Prism proxy does not support upstream responses that carry HTTP trailers',
+  status: 501,
+};
+
 export const PROXY_UNSUPPORTED_REQUEST_BODY: Omit<ProblemJson, 'detail'> = {
   type: 'PROXY_UNSUPPORTED_REQUEST_BODY',
   title:

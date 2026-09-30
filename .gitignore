@@ -29,3 +29,5 @@ cli-binaries
 
 # macOS
 .DS_Store
+
+test
