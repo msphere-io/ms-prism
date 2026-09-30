@@ -59,6 +59,12 @@ function addViolationHeader(reply: ServerResponse, validationErrors: ValidationE
   reply.setHeader('sl-violations', value);
 }
 
+// Raw Buffer bodies must not reach the logger: pino serialises them as `{"type":"Buffer","data":[...]}`,
+// which is several times larger than the payload and exhausts the heap when the CLI parses the log line.
+function toLoggableInput<T extends { body: unknown }>(input: T) {
+  return Buffer.isBuffer(input.body) ? { ...input, body: `<Buffer ${input.body.length} bytes>` } : input;
+}
+
 function parseRequestBody(request: IncomingMessage, config: IHttpConfig) {
   // if no body provided then return null instead of empty string
   if (
@@ -106,7 +112,7 @@ export const createServer = (operations: IHttpOperation[], opts: IPrismHttpServe
       body,
     };
 
-    components.logger.info({ input }, 'Request received');
+    components.logger.info({ input: toLoggableInput(input) }, 'Request received');
 
     const requestConfig: E.Either<Error, IHttpConfig> = pipe(
       getHttpConfigFromRequest(input),
@@ -165,7 +171,7 @@ export const createServer = (operations: IHttpOperation[], opts: IPrismHttpServe
         );
       }),
       TE.mapLeft((e: Error & { status?: number; additional?: { headers?: Dictionary<string> } }) => {
-        components.logger.error({ input }, `Request terminated with error: ${e}`);
+        components.logger.error({ input: toLoggableInput(input) }, `Request terminated with error: ${e}`);
 
         if (reply.writableEnded) {
           return;
@@ -186,7 +192,10 @@ export const createServer = (operations: IHttpOperation[], opts: IPrismHttpServe
           // upstream response, for instance, makes res.end() throw ERR_HTTP_TRAILER_INVALID.
           // Nothing downstream of here catches it, so without this the whole worker would die on
           // a single request. Drop everything staged on the reply and try once more, bare.
-          components.logger.error({ input }, `Failed to send the error response: ${E.toError(sendError)}`);
+          components.logger.error(
+            { input: toLoggableInput(input) },
+            `Failed to send the error response: ${E.toError(sendError)}`
+          );
 
           try {
             if (reply.headersSent) {
@@ -198,7 +207,10 @@ export const createServer = (operations: IHttpOperation[], opts: IPrismHttpServe
             reply.setHeader('content-type', 'application/problem+json');
             send(reply, e.status || 500, problemJson);
           } catch (fatalError) {
-            components.logger.error({ input }, `Unable to respond, destroying the socket: ${E.toError(fatalError)}`);
+            components.logger.error(
+              { input: toLoggableInput(input) },
+              `Unable to respond, destroying the socket: ${E.toError(fatalError)}`
+            );
             reply.destroy();
           }
         }
